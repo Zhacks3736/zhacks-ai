@@ -1,3 +1,5 @@
+import { GoogleGenAI } from '@google/genai';
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
@@ -7,21 +9,25 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-        return res.status(500).json({ error: 'Server API key not configured in environment variables.' });
+        return res.status(500).json({ error: 'Server API key not configured.' });
     }
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey
-            },
-            body: JSON.stringify({ contents })
+        const ai = new GoogleGenAI({ apiKey: apiKey });
+        
+        // Format contents correctly for the SDK
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: contents,
         });
 
-        const data = await response.json();
-        return res.status(200).json(data);
+        return res.status(200).json({
+            candidates: [{
+                content: {
+                    parts: [{ text: response.text }]
+                }
+            }]
+        });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
