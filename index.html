@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zhacks#Terminal // AI Hub</title>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --terminal-surface: #0a0f0a;
+            --accent-green: #00ff66;
+            --accent-cyan: #00e5ff;
+            --text-main: #00ff66;
+            --text-dim: #008833;
+            --border-color: #003311;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
+        body { background-color: var(--bg-color); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
+
+        /* Terminal Window Frame */
+        .terminal-container { flex: 1; display: flex; flex-direction: column; border: 1px solid var(--border-color); margin: 10px; background: var(--terminal-surface); box-shadow: 0 0 20px rgba(0, 255, 102, 0.05); border-radius: 4px; }
+        
+        .terminal-header { background: #001a05; padding: 10px 15px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--accent-cyan); }
+        .window-controls span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-left: 6px; }
+        .ctrl-red { background: #ff5f56; } .ctrl-yellow { background: #ffbd2e; } .ctrl-green { background: #27c93f; }
+
+        .output-stream { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; font-size: 0.95rem; }
+        
+        .log-entry { line-height: 1.4; word-break: break-word; }
+        .log-entry.user { color: var(--accent-cyan); }
+        .log-entry.user::before { content: "visitor@zhacks:~$ "; color: var(--text-dim); }
+        .log-entry.ai { color: var(--text-main); }
+        .log-entry.ai::before { content: "AI_CORE> "; color: var(--accent-green); font-weight: bold; }
+        .log-entry img { max-width: 100%; border: 1px solid var(--border-color); margin-top: 10px; border-radius: 4px; display: block; }
+
+        /* Command Line Input */
+        .input-bar { padding: 15px; background: #001a05; border-top: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; }
+        .prompt-symbol { color: var(--accent-green); font-weight: bold; }
+        textarea { flex: 1; background: transparent; border: none; color: var(--text-main); font-family: 'Courier New', Courier, monospace; font-size: 1rem; resize: none; height: 24px; outline: none; }
+        
+        .terminal-btn { background: transparent; border: 1px solid var(--border-color); color: var(--text-dim); padding: 6px 12px; cursor: pointer; font-family: 'Courier New', Courier, monospace; font-size: 0.8rem; }
+        .terminal-btn:hover { border-color: var(--accent-green); color: var(--accent-green); }
+        
+        #file-input { display: none; }
+        .status-bar { font-size: 0.75rem; color: var(--text-dim); padding: 5px 20px; background: #030803; border-top: 1px dashed var(--border-color); }
+    </style>
+</head>
+<body>
+
+    <div class="terminal-container">
+        <div class="terminal-header">
+            <span>root@zhacks-terminal:~ (SECURE_SESSION)</span>
+            <div class="window-controls"><span class="ctrl-red"></span><span class="ctrl-yellow"></span><span class="ctrl-green"></span></div>
+        </div>
+
+        <div class="output-stream" id="terminal-stream">
+            <div class="log-entry ai">System online. Model: gemini-3.6-flash. Drop files, enter prompts, or execute image commands freely. Type your query below.</div>
+        </div>
+
+        <div id="file-status" class="status-bar">No file attached.</div>
+
+        <div class="input-bar">
+            <span class="prompt-symbol">&gt;</span>
+            <input type="file" id="file-input" onchange="stageFile(event)">
+            <button class="terminal-btn" onclick="document.getElementById('file-input').click()">[ATTACH FILE]</button>
+            <textarea id="command-input" placeholder="Type prompt or command..." rows="1" onkeydown="interceptKey(event)"></textarea>
+            <button class="terminal-btn" onclick="executeCommand()">[EXECUTE]</button>
+        </div>
+    </div>
+
+    <script>
+        let stagedFile = null;
+
+        function stageFile(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    stagedFile = {
+                        data: evt.target.result.split(',')[1],
+                        mimeType: file.type,
+                        name: file.name
+                    };
+                    document.getElementById('file-status').innerText = `STAGED_FILE: ${file.name} (${file.type})`;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function interceptKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                executeCommand();
+            }
+        }
+
+        async function executeCommand() {
+            const inputField = document.getElementById('command-input');
+            const query = inputField.value.trim();
+            const stream = document.getElementById('terminal-stream');
+
+            if (!query && !stagedFile) return;
+
+            // Log User Command
+            const userLog = document.createElement('div');
+            userLog.className = 'log-entry user';
+            userLog.innerText = query + (stagedFile ? ` [FILE: ${stagedFile.name}]` : '');
+            stream.appendChild(userLog);
+
+            inputField.value = '';
+            stream.scrollTop = stream.scrollHeight;
+
+            const aiLog = document.createElement('div');
+            aiLog.className = 'log-entry ai';
+            aiLog.innerText = 'Processing through neural matrix...';
+            stream.appendChild(aiLog);
+
+            // Check if user is requesting an image generation command
+            if (query.startsWith('/image ')) {
+                const imgPrompt = query.replace('/image ', '');
+                const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(imgPrompt)}?width=1024&height=1024&nologo=true`;
+                aiLog.innerHTML = `Rendering synthetic asset for: "${imgPrompt}"<br><img src="${imageUrl}" onload="this.parentElement.scrollIntoView({behavior: 'smooth'})">`;
+                stagedFile = null;
+                document.getElementById('file-status').innerText = 'No file attached.';
+                return;
+            }
+
+            // Standard Gemini API Call using the current active model
+            // NOTE: For a fully public app without exposing your key, route this fetch 
+            // through a Vercel Serverless Function (e.g., /api/generate) instead of calling Google directly client-side.
+            try {
+                let contents = [];
+                if (stagedFile) {
+                    contents.push({
+                        inlineData: { mimeType: stagedFile.mimeType, data: stagedFile.data }
+                    });
+                }
+                contents.push({ text: query || "Analyze this file." });
+
+                // Replace YOUR_API_KEY with your backend proxy route or environment variable handler
+                const apiKey = "YOUR_HIDDEN_BACKEND_KEY"; 
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: contents }] })
+                });
+
+                const result = await response.json();
+                if (result.candidates && result.candidates[0].content) {
+                    aiLog.innerText = result.candidates[0].content.parts[0].text;
+                } else {
+                    aiLog.innerText = "Execution Error: " + (result.error?.message || "Unknown error response.");
+                }
+            } catch (error) {
+                aiLog.innerText = "Network Fault: " + error.message;
+            }
+
+            stagedFile = null;
+            document.getElementById('file-status').innerText = 'No file attached.';
+            stream.scrollTop = stream.scrollHeight;
+        }
+    </script>
+</body>
+</html>
